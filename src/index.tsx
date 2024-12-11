@@ -7,6 +7,10 @@ import appLogo from './logo.svg'
 import { version } from 'use-neo4j/package.json'
 import './index.css';
 
+// import { Neo4jProvider, createDriver } from 'use-neo4j'
+//const driver = createDriver('neo4j', '44.211.130.36', 7687, 'neo4j', 'emergency-binders-assignments')
+
+
 const logo = () => {
   return (<div className="logo"><img src={appLogo} alt="logo" /></div>)
 }
@@ -22,7 +26,7 @@ const footer = () => {
 
 ReactDOM.render(
   <React.StrictMode>
-    <Neo4jProvider logo={logo()} footer={footer()}>
+    <Neo4jProvider logo={logo()} footer={footer()} host='44.211.130.36' password='emergency-binders-assignments'>
       <App />
     </Neo4jProvider>
   </React.StrictMode>,
