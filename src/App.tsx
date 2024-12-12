@@ -1,29 +1,67 @@
-import React from 'react';
-import { useReadCypher } from 'use-neo4j'
-import './App.css';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useReadCypher } from 'use-neo4j';
 
-function App() {
-  const { cypher, error, loading, first } = useReadCypher('MATCH (n) RETURN count(n) AS count')
+const App = () => {
+  const [rows, setRows] = useState<any>([]);
 
-  // Default to Loading Message
-  let result = (<div className="ui active dimmer">Loading...</div>)
+  // Ejecutar una consulta con `useReadCypher`
+  const { loading, result, error } = useReadCypher(`
+    MATCH (p:Person {name: "Tom Hanks"})-[d:ACTED_IN]->(m:Movie)
+    WHERE m.released > 2005
+    RETURN p, d, m
+  `);
 
-  // Was there an error om the query?
-  if ( error ) {
-    result = (<div className="ui negative message">{ error.message }</div>)
-  }
-  else if ( !loading ) {
-    // Get the count
-    const count = first?.get('count').toNumber()
-    result = (<div>There are {count} nodes in the database.</div>)
-  }
+  // Memorizar `processInfo` para evitar renders infinitos
+  const processInfo = useCallback((record: any) => {
+    const person = record.get('p'); // Nodo `p` (Person)
+    const relationship = record.get('d'); // Relación `d` (DIRECTED)
+    const movie = record.get('m'); // Nodo `m` (Movie)
+
+    return {
+      Person: person?.properties?.name || 'Unknown',
+      Relationship: relationship?.type || 'Unknown',
+      Movie: movie?.properties?.title || 'Unknown',
+      Released: movie?.properties?.released?.low || 'N/A',
+    };
+  }, []);
+
+  // Ejecutar `processInfo` cuando los datos estén disponibles
+  useEffect(() => {
+    if (!loading && result) {
+      const processed = result.records.map((record: any) => processInfo(record));
+      setRows(processed);
+    }
+    if (error) console.error('Error ejecutando la consulta:', error);
+  }, [loading, result, processInfo, error]);
 
   return (
-    <div className="App">
-      <pre>{cypher}</pre>
-      {result}
+    <div>
+      {loading ? (
+        <p>Loading...</p>
+      ) : rows.length > 0 ? (
+        <table>
+          <thead>
+            <tr>
+              <th>Person</th>
+              <th>Relationship</th>
+              <th>Movie</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row: any, index: any) => (
+              <tr key={index}>
+                <td>{row.Person}</td>
+                <td>{row.Relationship}</td>
+                <td>{row.Movie}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <p>No data available</p>
+      )}
     </div>
   );
-}
+};
 
 export default App;
