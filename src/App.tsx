@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useReadCypher } from 'use-neo4j';
+import 'bootstrap/dist/css/bootstrap.min.css';
 
 const App = () => {
   const [rows, setRows] = useState<any>([]);
@@ -7,7 +8,7 @@ const App = () => {
   const [movieSelected, setMovieSelected] = useState<string>('');
   const [relationshipSelected, setRelationshipSelected] = useState<string>('ACTED_IN');
 
-const { loading, result: queryresult, run, error } = useReadCypher(`
+  const { loading, result: queryresult, run, error } = useReadCypher(`
   MATCH (p:Person)-[d]->(m:Movie)
   WHERE (COALESCE($relationshipSelected, '') = '' OR TYPE(d) = $relationshipSelected) AND
         (COALESCE($personSelected, '') = '' OR p.name = $personSelected) AND
@@ -80,51 +81,54 @@ const { loading, result: queryresult, run, error } = useReadCypher(`
 
   useEffect(() => {
     console.log("personSelected run", personSelected);
-    run({ personSelected, movieSelected,relationshipSelected });
-  }, [personSelected, movieSelected,relationshipSelected])
+    run({ personSelected, movieSelected, relationshipSelected });
+  }, [personSelected, movieSelected, relationshipSelected])
 
   return (
     <div>
 
       <div>
-        <div>
-          <select id="person-select" value={personSelected} onChange={(e) => setPersonSelected(e.target.value)}>
+        <div className="d-flex justify-content-around w-100 mt-4">
+          <select id="person-select" className="form-control shadow-sm" style={{ width: 200, appearance: 'menulist-button' }} value={personSelected} onChange={(e) => setPersonSelected(e.target.value)}>
             <option key={'none'} value={''}>Todos</option>
             {personsList.map((person: any, index: any) => (
               <option key={index} value={person}>{person}</option>
             ))}
           </select>
-          <select id="relationship-select" value={relationshipSelected} onChange={(e) => setRelationshipSelected(e.target.value)}>
+          <select id="relationship-select" className="form-control shadow-sm" style={{ width: 200, appearance: 'menulist-button' }} value={relationshipSelected} onChange={(e) => setRelationshipSelected(e.target.value)}>
             <option key={'none'} value={''}>Todos</option>
             {relationshipsList.map((relationship: any, index: any) => (
               <option key={index} value={relationship}>{relationship}</option>
             ))}
           </select>
-          <select id="movie-select" value={movieSelected} onChange={(e) => setMovieSelected(e.target.value)}>
+
+          <select id="movie-select" className="form-control shadow-sm" style={{ width: 200, appearance: 'menulist-button' }} value={movieSelected} onChange={(e) => setMovieSelected(e.target.value)}>
             <option key={'none'} value={''}>Todos</option>
             {moviesList.map((movie: any, index: any) => (
               <option key={index} value={movie}>{movie}</option>
             ))}
           </select>
         </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Person</th>
-              <th>Relationship</th>
-              <th>Movie</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length > 0 && rows.map((row: any, index: any) => (
-              <tr key={index}>
-                <td>{row.Person}</td>
-                <td>{row.Relationship}</td>
-                <td>{row.Movie}</td>
+        <div className="table-container p-4 mt-4 d-flex justify-content-center align-items-start">
+        <table className="table table-striped table-bordered shadow-sm">
+            <thead>
+              <tr>
+                <th>Person</th>
+                <th>Relationship</th>
+                <th>Movie</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.length > 0 && rows.map((row: any, index: any) => (
+                <tr key={index}>
+                  <td>{row.Person}</td>
+                  <td>{row.Relationship}</td>
+                  <td>{row.Movie}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
     </div>
