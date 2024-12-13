@@ -46,22 +46,36 @@ const App = () => {
   const [personSelected, setPersonSelected] = useState<string>('');
   const [movieSelected, setMovieSelected] = useState<string>('');
   const [relationshipSelected, setRelationshipSelected] = useState<string>('');
-  const [yearSelected, setYearSelected] = useState<string>('1980');
+  const [yearSelected, setYearSelected] = useState<string>('');
+  const [orderPersonSelected, setOrderPersonSelected] = useState<string>('');
+  const [orderMovieSelected, setOrderMovieSelected] = useState<string>('');
+  const [queryShow, setQueryShow] = useState<string>(`
+MATCH (p:Person)-[d]->(m:Movie)
+RETURN p, d, m`
+  );
 
   const { loading, result: queryresult, run, error } = useReadCypher(`
-  MATCH (p:Person)-[d]->(m:Movie)
+MATCH (p:Person)-[d]->(m:Movie)
   WHERE (COALESCE($relationshipSelected, '') = '' OR TYPE(d) = $relationshipSelected) AND
         (COALESCE($personSelected, '') = '' OR p.name = $personSelected) AND
-        (COALESCE($movieSelected, '') = '' OR m.title = $movieSelected)
+        (COALESCE($movieSelected, '') = '' OR m.title = $movieSelected) AND
+        (COALESCE($yearSelected, '') = '' OR m.released > $yearSelected)
   RETURN p, d, m
-`, { personSelected, movieSelected, relationshipSelected: reTraduccion(relationshipSelected), yearSelected });
+  ORDER BY CASE WHEN COALESCE($orderPersonSelected, '') = 'ASC' THEN p.name END ASC,
+           CASE WHEN COALESCE($orderPersonSelected, '') = 'DESC' THEN p.name END DESC,
+           CASE WHEN COALESCE($orderMovieSelected, '') = 'ASC' THEN m.title END ASC,
+           CASE WHEN COALESCE($orderMovieSelected, '') = 'DESC' THEN m.title END DESC
+`, {
+    personSelected, movieSelected, relationshipSelected: reTraduccion(relationshipSelected),
+    orderPersonSelected, orderMovieSelected,
+    yearSelected: !!yearSelected ? parseInt(yearSelected) : null
+  });
 
   const [moviesList, setMoviesList] = useState<any>([]);
   const [personsList, setPersonsList] = useState<any>([]);
   const [relationshipsList, setRelationshipsList] = useState<any>([]);
   const [yearsList, setYearsList] = useState<any>([]);
 
-  // Ejecutar una consulta con `useReadCypher`
   const { loading: loadingPersons, result: resultPersons, error: errorPersons, run: runPersons } = useReadCypher(
     `MATCH (p:Person)-[d]->(m:Movie)
     WHERE(COALESCE($movieSelected, '') = '' OR m.title = $movieSelected)
@@ -84,7 +98,7 @@ const App = () => {
 
   // const { loading, result: queryresult, error } = useReadCypher(query, {});
 
-  // Memorizar `processInfo` para evitar renders infinitos
+  // Memorizo `processInfo` para evitar renders infinitos
   const processInfo = useCallback((record: any) => {
     const person = record.get('p'); // Nodo `p` (Person)
     const relationship = record.get('d'); // Relación `d` (DIRECTED)
@@ -98,18 +112,47 @@ const App = () => {
       Released: movie?.properties?.released?.low || 'N/A',
     };
   }, []);
+
   const onClickReset = () => {
     setPersonSelected('');
     setMovieSelected('');
     setRelationshipSelected('');
-    setYearSelected('1980');
+    setYearSelected('');
+    setOrderMovieSelected('');
+    setOrderPersonSelected('');
   }
+  const processQueryToShow = () => {
+    console.log("order", orderPersonSelected === '' || orderMovieSelected === '');
 
-  // Ejecutar `processInfo` cuando los datos estén disponibles
+    const initialQuery = `
+MATCH (p:Person)-[d]->(m:Movie)${relationshipSelected
+        ? "\nWHERE TYPE(d) = '" + relationshipSelected + "'" + (personSelected || movieSelected || yearSelected ? ' AND ' : '')
+        : !personSelected && !movieSelected && !yearSelected ? '' : '\nWHERE '
+      }${personSelected
+        ? "p.name = '" + personSelected +"'"+ (movieSelected || yearSelected ? " AND " : '')
+        : ''}${movieSelected
+          ? "m.title = '" + movieSelected + "'" + (yearSelected ? " AND " : '')
+          : ''}${yearSelected
+            ? "m.releated > " + yearSelected
+            : ''}
+RETURN p, d, m
+${orderPersonSelected !== '' || orderMovieSelected !== ''
+        ? 'ORDER BY '
+        : ''}${orderPersonSelected !== '' ? orderPersonSelected === 'ASC'
+          ? "p.name ASC" + (orderMovieSelected ?', ' : '')
+          : "p.name DESC" + (orderMovieSelected ?', ' : '')
+          : ''}${orderMovieSelected !== '' ? orderMovieSelected === 'ASC'
+            ? "m.title ASC"
+            : "m.title DESC"
+            : ''}
+    `
+    return initialQuery
+  }
+  // Ejecuto `processInfo` cuando los datos estén disponibles
   useEffect(() => {
+    console.log("calculado", queryresult);
+    console.log("result", queryresult?.records);
     if (!loading && queryresult) {
-      // console.log("calculado", queryresult?.summary);
-      // console.log("result", queryresult?.records);
       const processed = queryresult.records.map((record: any) => processInfo(record));
       setRows(processed);
     }
@@ -119,8 +162,6 @@ const App = () => {
 
   useEffect(() => {
     if (!loadingPersons && resultPersons) {
-      console.log("resultPersons", resultPersons);
-
       const processed = resultPersons.records.map((record: any) => record.get('p').properties.name);
       setPersonsList(processed);
     }
@@ -145,9 +186,14 @@ const App = () => {
   }, [loadingRelationships, resultRelationships])
 
   useEffect(() => {
-    console.log("seleccionado un campo entonces run", personSelected, movieSelected, relationshipSelected, yearSelected);
-    run({ personSelected, movieSelected, relationshipSelected: reTraduccion(relationshipSelected), yearSelected });
-  }, [personSelected, movieSelected, relationshipSelected, yearSelected]);
+    console.log("seleccionado un campo entonces run", personSelected, movieSelected, relationshipSelected, yearSelected, orderPersonSelected, orderMovieSelected);
+    run({
+      personSelected, movieSelected, relationshipSelected: reTraduccion(relationshipSelected),
+      orderMovieSelected, orderPersonSelected, yearSelected: !!yearSelected ? parseInt(yearSelected) : null
+    });
+    const query = processQueryToShow();
+    setQueryShow(query);
+  }, [personSelected, movieSelected, relationshipSelected, yearSelected, orderPersonSelected, orderMovieSelected]);
 
   useEffect(() => {
     runMovies({ personSelected });
@@ -160,6 +206,7 @@ const App = () => {
     // if(personSelected !== '') setPersonSelected('');
     // setPersonSelected('');
   }, [movieSelected]);
+
   useEffect(() => {
     function getYears() {
       const years = [];
@@ -170,6 +217,7 @@ const App = () => {
     }
     setYearsList(getYears());
   }, []);
+
   return (
     <div>
 
@@ -213,7 +261,25 @@ const App = () => {
             </select>
           </div>
           <div className="d-flex flex-column align-items-left justify-content-end">
-            <button className="btn btn-primary shadow-md h-50" onClick={onClickReset}>Borrar Filtros</button>
+            <button className="btn btn-primary shadow-md h-50 d-flex justify-content-center align-items-center" onClick={onClickReset}>Borrar Filtros</button>
+          </div>
+        </div>
+        <div className="d-flex justify-content-around w-100 mt-4">
+          <div className="d-flex flex-column align-items-left">
+            <label htmlFor="order-person-select" className="mb-2">Ordenar por Persona</label>
+            <select id="order-person-select" className="form-control shadow-sm" style={{ width: 200, appearance: 'menulist-button' }} value={orderPersonSelected} onChange={(e) => setOrderPersonSelected(e.target.value)}>
+              <option key={'none'} value={''}>No</option>
+              <option key={'asc'} value={'ASC'}>Ascendente</option>
+              <option key={'desc'} value={'DESC'}>Descendente</option>
+            </select>
+          </div>
+          <div className="d-flex flex-column align-items-left">
+            <label htmlFor="order-movie-select" className="mb-2">Ordenar por Pelicula</label>
+            <select id="order-movie-select" className="form-control shadow-sm" style={{ width: 200, appearance: 'menulist-button' }} value={orderMovieSelected} onChange={(e) => setOrderMovieSelected(e.target.value)}>
+              <option key={'none'} value={''}>No</option>
+              <option key={'asc'} value={'ASC'}>Ascendente</option>
+              <option key={'desc'} value={'DESC'}>Descendente</option>
+            </select>
           </div>
         </div>
       </div>
@@ -270,6 +336,17 @@ const App = () => {
             }
           </tbody>
         </table>
+      </div>
+      <div className="table-container p-4 mt-4 d-flex justify-content-center align-items-start">
+        <div className="d-flex justify-content-around" style={{ maxWidth: '600px' }}>
+          <div className="card shadow-sm p-3 mb-5 bg-white rounded">
+            <h3 className="text-center">Consulta realizada</h3>
+            <hr className="mb-3 border-top border-secondary" />
+            <pre className="text-break" style={{ whiteSpace: 'pre-wrap' }}>
+              {queryShow}
+            </pre>
+          </div>
+        </div>
       </div>
     </div>
   );
